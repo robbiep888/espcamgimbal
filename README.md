@@ -5,6 +5,24 @@ an MG996R tilt servo, and a Python computer-vision application. Video streams
 over Wi-Fi while the desktop detects a selected hand and the firmware controls
 camera motion.
 
+## Assembled hardware
+
+Real photos of the printed and assembled gimbal. The front view shows the camera
+head, tilt servo, and pan base; the side view shows the shaft coupling and cable
+exit below the camera head.
+
+<table>
+  <tr>
+    <td><img src="docs/images/assembled-front.jpg" alt="Front view of the assembled ESP32-S3 camera gimbal" width="420"></td>
+    <td><img src="docs/images/assembled-side.jpg" alt="Side view showing the pan coupling and camera cable routing" width="420"></td>
+  </tr>
+  <tr><td>Front view</td><td>Side view and cable routing</td></tr>
+</table>
+
+These assembly photos show cable routing, but do not expose the board headers or
+stepper-driver terminals. The diagram below documents the firmware connections;
+it is not a verified connector-by-connector photograph of the current build.
+
 ## Project highlights
 
 - **Embedded C / ESP-IDF:** camera capture, TCP streaming, and a 100 Hz motion loop.
@@ -100,9 +118,40 @@ Pins that are *not* free on an ESP32-S3-WROOM-1-**N16R8** camera board:
 
 ## Wiring
 
+![Logical signal and power wiring for the ESP32-S3 gimbal](docs/images/wiring.png)
+
+The GPIO assignments below match [`main/include/gimbal_pins.h`](main/include/gimbal_pins.h).
+Use the GPIO labels on the board rather than counting header positions. The stepper-driver model is provisionally **A4988**; confirm its marking and
+terminal labels before using the driver-specific connections below.
+
+| ESP32-S3 connection | Destination | External resistor |
+|---|---|---|
+| GPIO 1 | Driver STEP | 10 kΩ pull-down to GND |
+| GPIO 2 | Driver DIR | — |
+| GPIO 42 | Driver ENABLE / EN, active low | 10 kΩ pull-up to the 3.3 V logic rail / A4988 VDD |
+| GPIO 41 | MG996R signal | 10 kΩ pull-down to GND |
+| GND | Driver GND and servo GND | Shared with power-supply and regulator grounds |
+
+### A4988 carrier connections (driver model to be confirmed)
+
+| A4988 pin or terminal | Connection |
+|---|---|
+| VDD | ESP32-S3 3V3 logic supply |
+| Logic GND and motor GND | Common ground |
+| VMOT | 12 V motor supply, with 100 µF electrolytic capacitor across VMOT/GND near the driver |
+| RESET / RST and SLEEP / SLP | Tie together and hold high at VDD for normal operation |
+| MS1 / MS2 / MS3 | High / High / Low for the firmware's default 1/8 microstepping |
+| 1A / 1B | One identified NEMA 17 coil pair |
+| 2A / 2B | The other identified coil pair |
+
+The logic-supply range, RESET/SLEEP behavior, and microstepping settings follow
+[Pololu's A4988 carrier guide](https://www.pololu.com/product/1182). Confirm the
+pinout of your module and set its current limit to suit your motor. Coil wire
+colors are not standardized; identify the pairs with a meter while unpowered.
+
 ```text
-ESP32-S3-CAM                 Step/dir driver (A4988 / DRV8825 / TMC2209)
-  GPIO 1  ───────────────────  STEP
+ESP32-S3-CAM                 Step/dir driver (A4988 assumed)
+  GPIO 1  ───────────────────  STEP     (+ 10 kΩ pull-down to GND)
   GPIO 2  ───────────────────  DIR
   GPIO 42 ───────────────────  ENABLE   (+ 10 kΩ pull-up to driver 3V3)
   GND     ───────────────────  GND      ← required, not optional
@@ -114,13 +163,16 @@ ESP32-S3-CAM                 Step/dir driver (A4988 / DRV8825 / TMC2209)
                                MG996R V+ (red) ── its own 5–6 V supply
 ```
 
-Three things here are not optional:
+The following wiring details are required for this build:
 
 **The ENABLE pull-up.** A4988, DRV8825 and TMC2209 all enable on a *low* level
 and hold ENABLE low internally. Without a 10 kΩ pull-up to the driver's 3V3
 logic rail, the coils energise the instant power is applied — before any
 firmware runs — and sit there heating up. With it, the motor stays off until
 `gimbal_control_start()` deliberately enables it.
+
+**The STEP pull-down.** Fit 10 kΩ between STEP and GND, as specified in
+`gimbal_pins.h`, so the input does not float before firmware takes control.
 
 **A separate supply for the servo.** An MG996R draws around 2.5 A stalled. You
 said the ESP32-S3 runs from a 5 V supply; do **not** hang the servo off that same
