@@ -5,24 +5,6 @@ an MG996R tilt servo, and a Python computer-vision application. Video streams
 over Wi-Fi while the desktop detects a selected hand and the firmware controls
 camera motion.
 
-## Assembled hardware
-
-Real photos of the printed and assembled gimbal. The front view shows the camera
-head, tilt servo, and pan base; the side view shows the shaft coupling and cable
-exit below the camera head.
-
-<table>
-  <tr>
-    <td><img src="docs/images/assembled-front.jpg" alt="Front view of the assembled ESP32-S3 camera gimbal" width="420"></td>
-    <td><img src="docs/images/assembled-side.jpg" alt="Side view showing the pan coupling and camera cable routing" width="420"></td>
-  </tr>
-  <tr><td>Front view</td><td>Side view and cable routing</td></tr>
-</table>
-
-These assembly photos show cable routing, but do not expose the board headers or
-stepper-driver terminals. The diagram below documents the firmware connections;
-it is not a verified connector-by-connector photograph of the current build.
-
 ## Project highlights
 
 - **Embedded C / ESP-IDF:** camera capture, TCP streaming, and a 100 Hz motion loop.
@@ -42,7 +24,8 @@ for another build.
 
 ## Getting started
 
-1. Follow the wiring and power instructions below for this board layout.
+1. Verify the physical connections and power-supply rating for your own build;
+   the hardware notes below record the current build description.
 2. Copy `main/include/wifi_credentials.h.example` to
    `main/include/wifi_credentials.h` and enter your own network details.
 3. Install ESP-IDF v5.5.4 and set `GIMBAL_IDF_PATH` to its checkout directory.
@@ -55,7 +38,7 @@ The firmware source, desktop application, credential template, and dependency
 lockfile are included. Local credentials, generated builds, Python environments,
 and third-party model weights are excluded from Git.
 
-The following guide contains the hardware details, tuning instructions, and
+The following guide contains the hardware notes, tuning instructions, and
 commands for running the existing tests. Performance figures describe the
 original build or simulations, rather than guarantees for other hardware.
 
@@ -73,126 +56,33 @@ second socket and a second task so it can never slow the video down.
 
 ---
 
-## ⚠️ Read this before wiring anything
+## Hardware and wiring status
 
-**The pins in the original plan cannot be used.** STEP=4, DIR=5, ENABLE=6 and
-servo=7 are all camera pins on this board:
+These notes record the current hardware description provided by the builder.
+A verified physical wiring photo and schematic are still needed before these
+notes can serve as a build guide.
 
-| Your plan | What that pin actually is | Use instead |
-|---|---|---|
-| STEP → GPIO 4 | camera SCCB **SDA** | **GPIO 1** |
-| DIR → GPIO 5 | camera SCCB **SCL** | **GPIO 2** |
-| ENABLE → GPIO 6 | camera **VSYNC** | **GPIO 42** |
-| servo PWM → GPIO 7 | camera **HREF** | **GPIO 41** |
-
-Wiring the driver to 4/5/6/7 means `esp_camera_init()` fails outright, or the
-camera comes up and produces torn frames. There is no software workaround: those
-pads are physically wired to the camera connector.
-
-To stop this being rediscovered on the bench, the four pins are checked at
-compile time. Setting one back to a camera pin fails the build with a message
-rather than producing firmware that silently cannot see:
-
-```text
-gimbal_pins.h:68:5: error: static assertion failed:
-    "GIMBAL_PIN_STEPPER_STEP collides with a camera pin; see gimbal_pins.h"
-```
-
-All four live in [`main/include/gimbal_pins.h`](main/include/gimbal_pins.h) and
-that is the only file to edit. Verified-free alternatives if one of the defaults
-is awkward on your headers: **14, 21, 47, 48**.
-
-Pins that are *not* free on an ESP32-S3-WROOM-1-**N16R8** camera board:
-
-| Range | Why |
+| Item | Current build description |
 |---|---|
-| 4–13, 15–18 | camera bus |
-| 26–32 | SPI flash |
-| **33–37** | **octal PSRAM — the "R8" part.** Often silkscreened as free; they are not |
-| 38, 39, 40 | routed to the microSD slot on this layout |
-| 19, 20 | native USB D−/D+ |
-| 43, 44 | UART0 console |
-| 0, 3, 45, 46 | strapping pins |
+| Power distribution | One input power rail feeds two separate buck converters |
+| Servo branch | Buck converter set to **6 V**, supplying the servo |
+| ESP32-S3 branch | Second buck converter set to **5 V**, supplying the ESP32-S3 |
+| Stepper-driver capacitor | **330 µF electrolytic** at the driver's motor supply |
+| Servo capacitor | **470 µF electrolytic** at the servo supply |
+| Microstepping | **1/16**, reported by the builder as configured by tying the selection wires together |
+| Input supply rating | **Not yet confirmed** from the supply label or measurement |
+| Stepper-driver model | Believed to be **A4988**; module marking still needs confirmation |
 
----
+Both the firmware's `GIMBAL_STEPPER_MICROSTEPS` and the desktop's `MICROSTEPS`
+are already **16**, matching the reported microstepping setting. This verifies
+software consistency; it does not verify which physical selection pins are tied
+or what voltage they are tied to.
 
-## Wiring
-
-![Logical signal and power wiring for the ESP32-S3 gimbal](docs/images/wiring.png)
-
-The GPIO assignments below match [`main/include/gimbal_pins.h`](main/include/gimbal_pins.h).
-Use the GPIO labels on the board rather than counting header positions. The stepper-driver model is provisionally **A4988**; confirm its marking and
-terminal labels before using the driver-specific connections below.
-
-| ESP32-S3 connection | Destination | External resistor |
-|---|---|---|
-| GPIO 1 | Driver STEP | 10 kΩ pull-down to GND |
-| GPIO 2 | Driver DIR | — |
-| GPIO 42 | Driver ENABLE / EN, active low | 10 kΩ pull-up to the 3.3 V logic rail / A4988 VDD |
-| GPIO 41 | MG996R signal | 10 kΩ pull-down to GND |
-| GND | Driver GND and servo GND | Shared with power-supply and regulator grounds |
-
-### A4988 carrier connections (driver model to be confirmed)
-
-| A4988 pin or terminal | Connection |
-|---|---|
-| VDD | ESP32-S3 3V3 logic supply |
-| Logic GND and motor GND | Common ground |
-| VMOT | 12 V motor supply, with 100 µF electrolytic capacitor across VMOT/GND near the driver |
-| RESET / RST and SLEEP / SLP | Tie together and hold high at VDD for normal operation |
-| MS1 / MS2 / MS3 | High / High / Low for the firmware's default 1/8 microstepping |
-| 1A / 1B | One identified NEMA 17 coil pair |
-| 2A / 2B | The other identified coil pair |
-
-The logic-supply range, RESET/SLEEP behavior, and microstepping settings follow
-[Pololu's A4988 carrier guide](https://www.pololu.com/product/1182). Confirm the
-pinout of your module and set its current limit to suit your motor. Coil wire
-colors are not standardized; identify the pairs with a meter while unpowered.
-
-```text
-ESP32-S3-CAM                 Step/dir driver (A4988 assumed)
-  GPIO 1  ───────────────────  STEP     (+ 10 kΩ pull-down to GND)
-  GPIO 2  ───────────────────  DIR
-  GPIO 42 ───────────────────  ENABLE   (+ 10 kΩ pull-up to driver 3V3)
-  GND     ───────────────────  GND      ← required, not optional
-                               VMOT ── 12 V motor supply + 100 µF across VMOT/GND
-                               1A/1B/2A/2B ── NEMA 17
-
-  GPIO 41 ───────────────────  MG996R signal (orange)
-  GND     ───────────────────  MG996R ground (brown)
-                               MG996R V+ (red) ── its own 5–6 V supply
-```
-
-The following wiring details are required for this build:
-
-**The ENABLE pull-up.** A4988, DRV8825 and TMC2209 all enable on a *low* level
-and hold ENABLE low internally. Without a 10 kΩ pull-up to the driver's 3V3
-logic rail, the coils energise the instant power is applied — before any
-firmware runs — and sit there heating up. With it, the motor stays off until
-`gimbal_control_start()` deliberately enables it.
-
-**The STEP pull-down.** Fit 10 kΩ between STEP and GND, as specified in
-`gimbal_pins.h`, so the input does not float before firmware takes control.
-
-**A separate supply for the servo.** An MG996R draws around 2.5 A stalled. You
-said the ESP32-S3 runs from a 5 V supply; do **not** hang the servo off that same
-rail through the board. A stalled servo will brown out the ESP32-S3 mid-frame,
-which looks exactly like a software bug. Give the servo its own 5–6 V supply,
-tie all grounds together, and put 470–1000 µF across the servo's supply close to
-the connector. The brownout detector is left enabled in
-[`sdkconfig.defaults`](sdkconfig.defaults) so if this does happen you get a clean
-reset and a log line rather than corrupted flash.
-
-**Common ground.** Board, driver and servo must share a ground reference or the
-step and PWM signals have nothing to swing against.
-
-The servo signal is driven at 3.3 V. An MG996R normally accepts that; if the
-tilt axis jitters at rest, a level shifter on that one line is the fix. A 10 kΩ
-pull-down on the servo signal keeps it quiet during boot.
-
-Set the driver's current limit **before** the motor is attached to the gimbal,
-and set the microstepping jumpers to match `GIMBAL_STEPPER_MICROSTEPS` (default
-1/8) in [`main/include/gimbal_config.h`](main/include/gimbal_config.h).
+The GPIO definitions in `main/include/gimbal_pins.h` describe what the firmware
+expects. The board header connections, driver terminals, ground connections,
+capacitor polarity and voltage ratings, and physical cable routing have not been
+verified against the current build. They are therefore not presented here as a
+confirmed wiring map.
 
 ---
 
@@ -299,7 +189,7 @@ attached — see **Running untethered** below.
 A healthy boot reports all of these:
 
 ```text
-Pan axis ready on STEP=1 DIR=2 EN=42, 1600 steps/rev, 25-1200 steps/s
+Pan axis ready on STEP=1 DIR=2 EN=42, 3200 steps/rev, 25-1350 steps/s
 Tilt axis ready on GPIO 41, centred at 90 deg, travel 50-130 deg
 Gimbal control loop is running on CPU 1 at 100 Hz
 Connected. Board IP address: 192.168.x.x
@@ -450,29 +340,11 @@ board. Resolving IPv4 explicitly takes 0.01 s.
 
 ### Powering it
 
-**Never feed 12 V to the board's 5V or 3V3 pin.** The 5V pin runs through a
-small linear regulator; at 12 V in it dissipates around 3.5 W and fails. Use a
-buck converter.
-
-A working arrangement, from one 12 V bench supply:
-
-| Rail | Feeds | Notes |
-|---|---|---|
-| 12 V direct | stepper driver VMOT | 100 µF across VMOT/GND at the driver |
-| 12 V → 5 V buck | ESP32-S3 5V pin | ~0.5 A including Wi-Fi TX bursts |
-| 12 V → 5–6 V buck | MG996R only | needs to survive a ~2.5 A stall |
-
-Give the servo its own buck rather than sharing the board's, so a stall cannot
-drag down the rail the ESP32-S3 is running on. Tie every ground together —
-supply, both buck outputs, driver and board.
-
-Budget roughly 2.7 A from 12 V worst case. On a bench supply the current setting
-is a limit, not a throttle: if you hit it the supply drops into constant-current
-and the **voltage sags**, which browns out the board. Set it higher than the
-worst case (4–5 A) rather than exactly at it.
-
-The brownout detector is enabled at its most sensitive level, so if a rail does
-sag you get a clean reset and a log line instead of corrupted flash.
+The current build uses a shared input rail and two buck converters: **5 V for
+the ESP32-S3** and **6 V for the servo**. See [Hardware and wiring status](#hardware-and-wiring-status)
+for the capacitor values and items still awaiting verification. The input
+supply's voltage and current rating have not yet been confirmed, so no specific
+input supply is prescribed here.
 
 ## 5. Driving it by hand, and checking the axes
 
