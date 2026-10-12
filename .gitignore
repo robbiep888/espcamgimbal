@@ -1,0 +1,34 @@
+# Never commit real Wi-Fi credentials. Only the .example template is tracked.
+main/include/wifi_credentials.h
+
+# Third-party model weights, ~7.8 MB. See the README for where to get it.
+desktop/models/*.task
+
+.venv/
+.tools/
+managed_components/
+__pycache__/
+*.pyc
+.pio/
+build/
+sdkconfig
+sdkconfig.old
+.DS_Store
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editor and test output
+.vscode/
+.idea/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log

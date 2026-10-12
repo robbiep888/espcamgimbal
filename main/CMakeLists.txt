@@ -1,0 +1,23 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "camera_service.c"
+        "control_server.c"
+        "gimbal_control.c"
+        "servo_driver.c"
+        "stepper_driver.c"
+        "stream_server.c"
+        "target_tracker.c"
+        "wifi_manager.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        driver
+        esp_event
+        esp_netif
+        esp_psram
+        esp_timer
+        esp_wifi
+        lwip
+        nvs_flash
+)

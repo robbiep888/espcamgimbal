@@ -1,0 +1,80 @@
+# ESP32-S3-WROOM-1-N16R8: 16 MB flash and 8 MB octal PSRAM.
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# The camera frame buffers live in external RAM. 80 MHz is a conservative,
+# stable default for the N16R8 module.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+# The PSRAM surface test costs about 440 ms of the ~885 ms between power-on and
+# app_main. Every one of those milliseconds is time the stepper's STEP and
+# ENABLE pins sit high-impedance, with the driver enabling itself and noise
+# clocking steps. Skipping the test roughly halves that window.
+CONFIG_SPIRAM_MEMTEST=n
+# Completed JPEG frame buffers still live in PSRAM. Direct camera-to-PSRAM DMA
+# is left off because it truncated OV3660 JPEGs on this ESP32-S3 revision.
+# CONFIG_CAMERA_PSRAM_DMA is not set
+
+# Keep both CPUs available to our explicitly pinned application tasks.
+CONFIG_FREERTOS_UNICORE=n
+CONFIG_ESP_MAIN_TASK_AFFINITY_CPU0=y
+
+# Camera copies and the TCP/IP stack share memory bandwidth. Run the S3 at its
+# full rated clock and use a TCP window large enough to hold several JPEGs.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# ESP-IDF's ESP32-S3 iperf profile uses these buffer and aggregation sizes for
+# sustained local-network throughput. Dynamic buffers consume memory only when
+# traffic needs them; the static buffers come from the internal-RAM reserve.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=64
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=64
+CONFIG_ESP_WIFI_TX_BA_WIN=32
+CONFIG_ESP_WIFI_RX_BA_WIN=32
+CONFIG_LWIP_IRAM_OPTIMIZATION=y
+CONFIG_LWIP_TCPIP_TASK_PRIO=23
+# The send buffer is NOT the iperf value. It is where stale video hides: the
+# latest-frame mailbox only starts dropping once send() blocks, so every byte of
+# buffer is footage that is already out of date whenever Wi-Fi or the desktop
+# falls behind. At 65535 a dip to 1.2 Mbit/s left the viewer ~1 s behind. The
+# per-socket SO_SNDBUF in stream_server.c cannot do this: lwIP ignores it, so
+# this global is the only cap.
+#
+# It must not be too small either. lwIP has no tail-loss probe, so a lost
+# segment is repaired quickly only if three more segments follow it. At 16 KB
+# (about one JPEG) the next frame often had no room to go out, and a loss near
+# the end of a frame waited for the retransmit timer instead. 32 KB leaves room
+# for the following frame to trigger fast retransmit.
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768
+# lwIP counts retransmit timeouts in ticks of twice this interval, with a floor
+# of three ticks: at the default 250 ms, any loss fast retransmit cannot repair
+# freezes the video for 1.5 s, then 3 s, then 6 s. At 100 ms that is 0.6, 1.2
+# and 2.4 s. RTTs to the desktop are under 10 ms, so this is still generous.
+CONFIG_LWIP_TCP_TMR_INTERVAL=100
+CONFIG_LWIP_TCP_WND_DEFAULT=65535
+CONFIG_LWIP_TCP_RECVMBOX_SIZE=64
+CONFIG_LWIP_UDP_RECVMBOX_SIZE=64
+CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=64
+
+# The step-pulse and servo timers must not be reclocked underneath us, so leave
+# dynamic frequency scaling off. LEDC then always runs from the 80 MHz APB clock
+# and the frequency maths in stepper_driver.c / servo_driver.c stays exact.
+# CONFIG_PM_ENABLE is not set
+
+# The motion loop runs at GIMBAL_CONTROL_HZ (100 Hz). At the default 100 Hz
+# FreeRTOS tick that is exactly one tick per iteration, leaving no room for the
+# loop to be scheduled late. A 1 kHz tick costs a percent or two of CPU and buys
+# a ten-times finer timebase for step-rate ramps.
+CONFIG_FREERTOS_HZ=1000
+
+# Motors share the 5 V rail. Keep the brownout detector on so a stall resets the
+# board cleanly instead of corrupting flash.
+CONFIG_ESP_BROWNOUT_DET=y
+
+# Useful logs without drowning the serial monitor during streaming.
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y

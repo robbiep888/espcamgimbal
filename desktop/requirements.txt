@@ -1,0 +1,6 @@
+numpy>=1.26,<3
+opencv-python>=4.10,<5
+# 0.10.9+ ships the Tasks API. Recent builds (0.10.35 here) have DROPPED the old
+# mp.solutions.hands API entirely, which is why this project uses Tasks and
+# needs the model bundle described in the README.
+mediapipe>=0.10.9,<0.12
