@@ -5,6 +5,14 @@ an MG996R tilt servo, and a Python computer-vision application. Video streams
 over Wi-Fi while the desktop detects a selected hand and the firmware controls
 camera motion.
 
+## The build
+
+<img src="docs/images/02-assembled-front.jpg" alt="Front view of the assembled camera gimbal in its printed frame" width="500">
+
+Camera head above the pan base, with the tilt servo mounted beside the head.
+See the [build photo gallery](docs/BUILD_PHOTOS.md) for side views, the external
+electronics, and both sides of the stepper-driver module.
+
 ## Project highlights
 
 - **Embedded C / ESP-IDF:** camera capture, TCP streaming, and a 100 Hz motion loop.
@@ -59,8 +67,14 @@ second socket and a second task so it can never slow the video down.
 ## Hardware and wiring status
 
 These notes record the current hardware description provided by the builder.
-A verified physical wiring photo and schematic are still needed before these
-notes can serve as a build guide.
+The supplied photos show the assembly, external electronics, and driver pin
+labels. Exact pin-to-pin wiring and supply readings still need verification
+before these notes can serve as a build guide.
+
+<img src="docs/images/01-electronics-overview.jpg" alt="Gimbal cable bundle and external electronics, including two buck-converter boards" width="650">
+
+The two buck-converter boards are visible below the gimbal. Their output values
+in the table are supplied by the builder; the photo does not show voltage measurements.
 
 | Item | Current build description |
 |---|---|
@@ -71,7 +85,7 @@ notes can serve as a build guide.
 | Servo capacitor | **470 µF electrolytic** at the servo supply |
 | Microstepping | **1/16**, reported by the builder as configured by tying the selection wires together |
 | Input supply rating | **Not yet confirmed** from the supply label or measurement |
-| Stepper-driver model | Believed to be **A4988**; module marking still needs confirmation |
+| Stepper-driver module | PCB marked **HW-134A** in the supplied pin-side photo; previously identified by the builder as likely A4988, with exact IC identification still unconfirmed |
 
 Both the firmware's `GIMBAL_STEPPER_MICROSTEPS` and the desktop's `MICROSTEPS`
 are already **16**, matching the reported microstepping setting. This verifies
@@ -80,9 +94,18 @@ or what voltage they are tied to.
 
 The GPIO definitions in `main/include/gimbal_pins.h` describe what the firmware
 expects. The board header connections, driver terminals, ground connections,
-capacitor polarity and voltage ratings, and physical cable routing have not been
-verified against the current build. They are therefore not presented here as a
-confirmed wiring map.
+capacitor polarity and voltage ratings have not been verified against the
+current build. The photos document visible cable routing without establishing
+a confirmed electrical wiring map.
+
+### Driver pin labels
+
+<img src="docs/images/06-driver-pin-labels.jpg" alt="Pin side of the red HW-134A stepper-driver carrier showing terminal labels" width="450">
+
+The photographed carrier is marked **HW-134A**. The pin side labels the control
+connections as DIRECTION, STEP, SLEEP, RESET, MS3, MS2, MS1, and ENABLE. These
+are the printed module labels; the photo shows the loose module, not the
+installed microstepping connections.
 
 ---
 
