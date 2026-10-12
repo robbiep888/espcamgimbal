@@ -67,36 +67,50 @@ second socket and a second task so it can never slow the video down.
 ## Hardware and wiring status
 
 These notes record the current hardware description provided by the builder.
-The supplied photos show the assembly, external electronics, and driver pin
-labels. Exact pin-to-pin wiring and supply readings still need verification
-before these notes can serve as a build guide.
+The power setup and component values below are confirmed by the builder. The
+supplied photos show the assembly, external electronics, and driver pin labels.
+The signal assignments are verified from the firmware; the installed wires
+have not yet been traced terminal by terminal.
 
 <img src="docs/images/01-electronics-overview.jpg" alt="Gimbal cable bundle and external electronics, including two buck-converter boards" width="650">
 
-The two buck-converter boards are visible below the gimbal. Their output values
-in the table are supplied by the builder; the photo does not show voltage measurements.
+The two **LM2596 DC–DC buck converters** are visible below the gimbal. Both
+are fed through a power rail from a **12 V / 3 A bench supply**.
 
 | Item | Current build description |
 |---|---|
-| Power distribution | One input power rail feeds two separate buck converters |
-| Servo branch | Buck converter set to **6 V**, supplying the servo |
-| ESP32-S3 branch | Second buck converter set to **5 V**, supplying the ESP32-S3 |
+| Power distribution | Power rail feeds two separate **LM2596 DC–DC buck converters** |
+| Servo branch | One LM2596 set to **6 V**, supplying the servo |
+| ESP32-S3 branch | Second LM2596 set to **5 V**, supplying the ESP32-S3 |
 | Stepper-driver capacitor | **330 µF electrolytic** at the driver's motor supply |
 | Servo capacitor | **470 µF electrolytic** at the servo supply |
 | Microstepping | **1/16**, reported by the builder as configured by tying the selection wires together |
-| Input supply rating | **Not yet confirmed** from the supply label or measurement |
-| Stepper-driver module | PCB marked **HW-134A** in the supplied pin-side photo; previously identified by the builder as likely A4988, with exact IC identification still unconfirmed |
+| Input supply | **12 V / 3 A bench supply**, confirmed by the builder |
+| Stepper-driver module | PCB marked **HW-134A** in the pin-side photo; believed to be A4988, with exact IC identification still unconfirmed |
 
 Both the firmware's `GIMBAL_STEPPER_MICROSTEPS` and the desktop's `MICROSTEPS`
 are already **16**, matching the reported microstepping setting. This verifies
 software consistency; it does not verify which physical selection pins are tied
 or what voltage they are tied to.
 
-The GPIO definitions in `main/include/gimbal_pins.h` describe what the firmware
-expects. The board header connections, driver terminals, ground connections,
-capacitor polarity and voltage ratings have not been verified against the
-current build. The photos document visible cable routing without establishing
-a confirmed electrical wiring map.
+### Signal assignments verified from the code
+
+The pin definitions in [`main/include/gimbal_pins.h`](main/include/gimbal_pins.h)
+are used by `main/stepper_driver.c` and `main/servo_driver.c`:
+
+| ESP32-S3 GPIO | Expected destination |
+|---|---|
+| **1** | Stepper-driver STEP |
+| **2** | Stepper-driver DIRECTION / DIR |
+| **42** | Stepper-driver ENABLE |
+| **41** | Servo signal |
+
+The code verifies the assigned GPIO numbers and the software's 1/16 step scaling.
+It cannot detect which terminals the physical wires reach, the driver logic and
+motor-supply connections, shared grounds, MS1/MS2/MS3 connections, or capacitor
+polarity and voltage ratings. Those details require tracing the installed wires
+or recording the actual terminal connections. The photos show cable routing but
+do not make every connection visible.
 
 ### Driver pin labels
 
@@ -363,11 +377,12 @@ board. Resolving IPv4 explicitly takes 0.01 s.
 
 ### Powering it
 
-The current build uses a shared input rail and two buck converters: **5 V for
-the ESP32-S3** and **6 V for the servo**. See [Hardware and wiring status](#hardware-and-wiring-status)
-for the capacitor values and items still awaiting verification. The input
-supply's voltage and current rating have not yet been confirmed, so no specific
-input supply is prescribed here.
+A **12 V / 3 A bench supply** feeds the power rail. Two **LM2596 DC–DC buck
+converters** provide separate branches: **5 V to the ESP32-S3** and **6 V to the
+servo**. The build uses a **330 µF electrolytic capacitor at the stepper-driver
+motor supply** and a **470 µF electrolytic capacitor at the servo supply**.
+See [Hardware and wiring status](#hardware-and-wiring-status) for the firmware
+signal assignments and the physical connections still to be recorded.
 
 ## 5. Driving it by hand, and checking the axes
 
